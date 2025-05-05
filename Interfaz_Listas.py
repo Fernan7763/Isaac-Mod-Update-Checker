@@ -1,10 +1,11 @@
 # ---------- Importaciones ----------
-from Interfaz_Verificar import comparar_versiones  # Asegúrate de que la ruta sea correcta
+from Interfaz_Verificar import comparar_versiones
 from tkinter import Label, Button, messagebox, simpledialog
 import tkinter as tk
 import webbrowser
 import os
 import json
+
 
 # ---------- Constantes de Estilo ----------
 COLOR_VERDE = "#00FF00"
@@ -17,21 +18,18 @@ COLOR_FONDO = "#1e1e1e"
 COLOR_BOTON = "#3a3a3a"
 FUENTE_GENERAL = ("Segoe UI", 10)
 
+
+# ---------- Constantes ----------
 ARCHIVO_JSON = "mods_info.json"
 
 
 # ---------- Función Principal Externa ----------
 def cargar_y_mostrar_mods(frame, filtros_activos=None):
-    """
-    Carga los datos del JSON, aplica filtros si hay, los ordena y los muestra.
-    """
     lista = cargar_mods_json()
     if filtros_activos:
         lista = aplicar_filtros(lista, filtros_activos)
     lista = ordenar_mods(lista)
     dibujar_lista_mods(frame, lista)
-
-
 
 
 # ---------- Lectura del JSON ----------
@@ -59,7 +57,7 @@ def dibujar_lista_mods(frame, lista_mods):
         widget.destroy()
 
     # --- Títulos de columna ---
-    titulos = ["Nombre", "Versión", "Nueva Versión", "Fecha de Publicación", "Fecha de Actualización",
+    titulos = ["Nombre", "Versión", "Nueva Versión", "Publicación", "Actualización", "Tamaño Nuevo", 
                "Acción", "  Editar  ", "Eliminar"]
     
     for j, titulo in enumerate(titulos):
@@ -70,14 +68,15 @@ def dibujar_lista_mods(frame, lista_mods):
 
     # --- Fila por mod ---
     for i, mod in enumerate(lista_mods):
-        agregar_fila_mod(frame, mod, i + 1)  # desplazamos +1 para dejar espacio al encabezado
+        agregar_fila_mod(frame, mod, i + 1)
+
 
 # ---------- Fila Individual ----------
 def agregar_fila_mod(frame, mod, index):
-    campos = ["nombre", "version", "nueva_version", "fecha_publicacion", "fecha_actualizacion"]
+    campos = ["nombre", "version", "nueva_version", "fecha_publicacion", "fecha_actualizacion", "tamaño"]
 
     for j, campo in enumerate(campos):
-        valor = mod.get(campo, "No encontrado")
+        valor = mod.get(campo, "Sin Datos")
         color = obtener_color_dato(mod, campo, valor)
 
         Label(
@@ -106,9 +105,10 @@ def obtener_color_dato(mod, campo, valor):
             return COLOR_AZUL
         elif estado == "igual":
             return COLOR_VERDE
+        elif estado == "none":
+            return COLOR_NO_ENCONTRADO
 
     return COLOR_NO_ENCONTRADO if valor == "No encontrado" else COLOR_TEXTO
-
 
 
 # ---------- Botones ----------
@@ -117,14 +117,14 @@ def crear_botones(frame, mod, index):
     b_desc = Button(frame, text="Descargar", bg=COLOR_AZUL, fg="white",
                     font=FUENTE_GENERAL, activebackground="#2B8ACF", cursor="hand2",
                     command=lambda m=mod: descargar_mod(m))
-    b_desc.grid(row=index, column=5)
+    b_desc.grid(row=index, column=6)
     b_desc.bind("<ButtonPress-1>", lambda e, b=b_desc: b.config(bg="#2B8ACF"))
     b_desc.bind("<ButtonRelease-1>", lambda e, b=b_desc: b.config(bg=COLOR_AZUL))
 
     # Botón Modificar
     b_mod = Button(frame, text="Modificar", bg=COLOR_AMARILLO, fg="black",
                    font=FUENTE_GENERAL, activebackground="#C0A000", cursor="hand2")
-    b_mod.grid(row=index, column=6)
+    b_mod.grid(row=index, column=7)
     b_mod.bind("<ButtonPress-1>", lambda e, b=b_mod: b.config(bg="#C0A000"))
     b_mod.bind("<ButtonRelease-1>", lambda e, b=b_mod: b.config(bg=COLOR_AMARILLO))
     b_mod.config(command=lambda: mostrar_menu_modificar(frame, b_mod, mod, index, lambda idx=index: actualizar_fila(frame, mod, idx)))
@@ -133,7 +133,7 @@ def crear_botones(frame, mod, index):
     b_del = Button(frame, text="Eliminar", bg="#AA3333", fg="white",
                    font=FUENTE_GENERAL, activebackground="#882222", cursor="hand2",
                    command=lambda m=mod: eliminar_mod(m, frame))
-    b_del.grid(row=index, column=7)
+    b_del.grid(row=index, column=8)
     b_del.bind("<ButtonPress-1>", lambda e, b=b_del: b.config(bg="#882222"))
     b_del.bind("<ButtonRelease-1>", lambda e, b=b_del: b.config(bg="#AA3333"))
 
@@ -181,7 +181,6 @@ def guardar_mods_json_actualizado(mod_actualizado):
         json.dump(lista, f, indent=4)
 
 
-
 def actualizar_fila(frame, mod, index):
     for widget in frame.grid_slaves(row=index):
         widget.destroy()
@@ -198,6 +197,7 @@ def descargar_mod(mod):
         messagebox.showwarning("ID no encontrado", f"El mod '{mod.get('nombre', 'Desconocido')}' no tiene ID válido.")
 
 
+# ---------- Funcion Eliminar ----------
 def eliminar_mod(mod, frame):
     respuesta = messagebox.askyesno("Confirmar eliminación", f"¿Eliminar '{mod['nombre']}' del registro?")
     if not respuesta:
@@ -209,18 +209,17 @@ def eliminar_mod(mod, frame):
     with open(ARCHIVO_JSON, "w", encoding="utf-8") as f:
         json.dump(nueva_lista, f, indent=4)
 
+    messagebox.showinfo("Eliminación exitosa", f"'{mod['nombre']}' ha sido eliminado del registro.")
     dibujar_lista_mods(frame, nueva_lista)
 
-# ---------- Ordenamiento ----------
+
+# ---------- Ordenamiento por prioridad----------
 def ordenar_mods(lista_mods):
-    """
-    Ordena los mods primero por estado (según prioridad) y luego por nombre alfabéticamente.
-    """
     prioridad_estado = {
         "actualizable": 0,
         "mayor": 1,
         "igual": 2,
-        "fecha": 3
+        "incomprobable": 3
     }
 
     def clave_orden(mod):

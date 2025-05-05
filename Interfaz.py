@@ -1,12 +1,14 @@
 # ---------- Importaciones ----------
 import tkinter as tk
-from tkinter import filedialog
 import os
 import json
 
-from Interfaz_Listas import dibujar_lista_mods
-from Interfaz_Verificar import actualizar_mods_desde_steam, cargar_mods_locales, manejar_seleccion_ruta, manejar_carga_mods
-import Interfaz_Filtros as IF  # NUEVA LÍNEA
+
+# ---------- Importaciones de otros modulos ----------
+import Interfaz_Listas as IL
+import Interfaz_Verificar as IV
+import Interfaz_Filtros as IF
+
 
 # ---------- Constantes ----------
 ARCHIVO_JSON = "mods_info.json"
@@ -15,20 +17,24 @@ COLOR_TEXTO = "white"
 COLOR_BOTON = "#3a3a3a"
 FUENTE_GENERAL = ("Segoe UI", 10)
 
+
 # ---------- Configuración Inicial ----------
 ventana = tk.Tk()
 ventana.title("Verificador de Mods")
 ventana.configure(bg=COLOR_FONDO)
 ventana.state("zoomed")
 
+
 # ---------- Contenedor Principal ----------
 main_frame = tk.Frame(ventana, bg=COLOR_FONDO)
 main_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
 
 # ---------- Título ----------
 titulo = tk.Label(main_frame, text="Verificador de Mods", font=("Segoe UI", 18, "bold"),
                   bg=COLOR_FONDO, fg=COLOR_TEXTO)
 titulo.pack(pady=(10, 15))
+
 
 # ---------- Sección Ruta de Carpeta y Botones ----------
 ruta_frame = tk.Frame(main_frame, bg=COLOR_FONDO)
@@ -45,7 +51,7 @@ entrada_ruta = tk.Entry(
 entrada_ruta.pack(side="left", padx=5)
 
 def seleccionar_ruta():
-    manejar_seleccion_ruta(entrada_ruta, boton_cargar)
+    IV.manejar_seleccion_ruta(entrada_ruta, boton_cargar)
 
 boton_buscar = tk.Button(ruta_frame, text="📂", font=FUENTE_GENERAL,
                          command=seleccionar_ruta, bg=COLOR_BOTON, fg=COLOR_TEXTO)
@@ -59,36 +65,43 @@ boton_actualizar = tk.Button(ruta_frame, text="Consultar Actualizaciones", font=
                              bg=COLOR_BOTON, fg=COLOR_TEXTO)
 boton_actualizar.pack(side="left", padx=(10, 0))
 
+
 # ---------- Sección de Filtros ----------
 filtros_frame = tk.Frame(main_frame, bg=COLOR_FONDO)
 filtros_frame.pack(fill="x", pady=(0, 10))
 
-IF.crear_interfaz_filtros(filtros_frame)  # NUEVA LÍNEA
+IF.crear_interfaz_filtros(filtros_frame)
+
 
 # ---------- Lista de Mods ----------
 canvas = tk.Canvas(main_frame, bg=COLOR_FONDO, highlightthickness=0)
-scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-canvas.configure(yscrollcommand=scrollbar.set)
+scrollbarx = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+#scrollbary = tk.Scrollbar(main_frame, orient="horizontal", command=canvas.xview)
+canvas.configure(yscrollcommand=scrollbarx.set)
+#canvas.configure(yscrollcommand=scrollbary.set)
 
-scrollbar.pack(side="right", fill="y")
+scrollbarx.pack(side="right", fill="y")
+#scrollbary.pack(side="bottom", fill="x")
 canvas.pack(side="left", fill="both", expand=True)
 
 lista_frame = tk.Frame(canvas, bg=COLOR_FONDO)
 canvas.create_window((0, 0), window=lista_frame, anchor="nw")
 
-IF.asignar_frame_lista(lista_frame)  # NUEVA LÍNEA
+IF.asignar_frame_lista(lista_frame)
 
 def ajustar_scroll(event):
     canvas.configure(scrollregion=canvas.bbox("all"))
 
 lista_frame.bind("<Configure>", ajustar_scroll)
 
+
 # ---------- Estado Inferior ----------
 estado_label = tk.Label(ventana, text="Listo", bg=COLOR_FONDO,
                         fg="gray", font=("Segoe UI", 9))
 estado_label.pack(pady=5)
 
-# ---------- Funciones ----------
+
+# ---------- Funciones iniciales de carga ----------
 def cargar_mods():
     if not os.path.exists(ARCHIVO_JSON):
         ejemplo = [{
@@ -97,6 +110,8 @@ def cargar_mods():
             "nueva_version": "1.0",
             "fecha_publicacion": "1-1-2025",
             "fecha_actualizacion": "1-1-2025",
+            "tamaño": "10 MB",
+            "estado": "igual",
             "id": "2575911103"
         }]
         with open(ARCHIVO_JSON, "w", encoding="utf-8") as f:
@@ -107,15 +122,17 @@ def cargar_mods():
             return json.load(f)
         except json.JSONDecodeError:
             return []
+    IF.limpiar_filtros()
 
 def cargar_datos_desde_ruta():
     global mods
     def redibujar(mods_filtrados):
         global mods
         mods = mods_filtrados
-        dibujar_lista_mods(lista_frame, mods)
+        IL.dibujar_lista_mods(lista_frame, mods)
 
-    manejar_carga_mods(entrada_ruta, estado_label, cargar_mods, redibujar)
+    IV.manejar_carga_mods(entrada_ruta, estado_label, cargar_mods, redibujar)
+    IF.limpiar_filtros()
 
 def consultar_actualizaciones():
     global mods
@@ -126,19 +143,22 @@ def consultar_actualizaciones():
     estado_label.config(text="🔍 Consultando actualizaciones en Steam...")
     ventana.update_idletasks()
 
-    actualizar_mods_desde_steam(mods, estado_label)
+    IV.actualizar_mods_desde_steam(mods, estado_label)
 
     mods = cargar_mods()
-    dibujar_lista_mods(lista_frame, mods)
+    IL.dibujar_lista_mods(lista_frame, mods)
+    IF.limpiar_filtros()
 
 # ---------- Asignación de Funciones ----------
 boton_cargar.config(command=cargar_datos_desde_ruta)
 boton_actualizar.config(command=consultar_actualizaciones)
 
+
 # ---------- Cargar Datos Iniciales ----------
 mods = cargar_mods()
-dibujar_lista_mods(lista_frame, mods)
+IL.dibujar_lista_mods(lista_frame, mods)
 IF.limpiar_filtros()
+
 
 # ---------- Punto de Entrada ----------
 if __name__ == "__main__":

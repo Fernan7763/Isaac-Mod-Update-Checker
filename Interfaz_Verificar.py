@@ -1,33 +1,32 @@
+# ---------- Importaciones ----------
 import os
 import json
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 
+
+# ---------- Constantes ----------
 ARCHIVO_JSON = "mods_info.json"
 API_URL = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/"
-
 MESES_ES = {
     1: "ENE", 2: "FEB", 3: "MAR", 4: "ABR", 5: "MAY", 6: "JUN",
     7: "JUL", 8: "AGO", 9: "SEP", 10: "OCT", 11: "NOV", 12: "DIC"
 }
 
-def timestamp_a_fecha(ts):
-    if not ts:
-        return "No encontrado"
-    dt = datetime.utcfromtimestamp(ts)
-    return f"{dt.day:02d} {MESES_ES[dt.month]} {dt.year} a las {dt.strftime('%H:%M')}"
-
+# ---------- Validar Version ----------
 def es_version_valida(version):
     return all(part.isdigit() for part in version.split("."))
 
+
+# ---------- Comprobar y comparar versiones ----------
 def comparar_versiones(local, nueva):
     if not local or not nueva:
-        return "desconocido"
+        return "none"
 
     if not es_version_valida(local) or not es_version_valida(nueva):
-        return "fecha"
+        return "none"
 
     try:
         l_parts = list(map(int, local.split(".")))
@@ -48,6 +47,7 @@ def comparar_versiones(local, nueva):
         return "desconocido"
 
 
+# ---------- Extraer Datos de Metadata ----------
 def extraer_datos_metadata(path_metadata):
     try:
         tree = ET.parse(path_metadata)
@@ -58,41 +58,10 @@ def extraer_datos_metadata(path_metadata):
         return nombre, mod_id, version
     except Exception as e:
         print(f"Error al procesar {path_metadata}: {e}")
-        return None, None, None
+        return "Error de Lectura", "Error de Lectura", "Error de Lectura"
 
-def obtener_info_steam(mod_id):
-    try:
-        response = requests.post(API_URL, data={
-            'itemcount': 1,
-            'publishedfileids[0]': mod_id
-        })
-        if response.status_code != 200:
-            raise Exception("API request failed")
 
-        details = response.json()["response"]["publishedfiledetails"][0]
-        descripcion = details.get("description", "")
-        update_time = details.get("time_updated", 0)
-
-        import re
-        version_match = re.search(r"v?(\d+(\.\d+)+)", descripcion)
-        nueva_version = version_match.group(1) if version_match else "No encontrado"
-
-        fecha_publicacion = "No encontrado"
-        try:
-            pagina = requests.get(f"https://steamcommunity.com/sharedfiles/filedetails/?id={mod_id}", timeout=5)
-            if pagina.status_code == 200:
-                match = re.search(r"Publicado el\s*([0-9]{1,2} \w{3} [0-9]{4} a las [0-9]{1,2}:[0-9]{2})", pagina.text)
-                if match:
-                    fecha_publicacion = match.group(1)
-        except Exception as e:
-            print(f"[WARN] No se pudo obtener fecha de publicación de {mod_id}: {e}")
-
-        return nueva_version, timestamp_a_fecha(update_time), fecha_publicacion
-
-    except Exception as e:
-        print(f"Error consultando Steam para ID {mod_id}: {e}")
-        return "No encontrado", "No encontrado", "No encontrado"
-
+# ---------- Manejar la ruta de la carpeta de Mods ----------
 def manejar_seleccion_ruta(entrada_widget, boton_cargar):
     ruta = filedialog.askdirectory(title="Selecciona la carpeta de mods")
     if not ruta:
@@ -109,7 +78,13 @@ def manejar_seleccion_ruta(entrada_widget, boton_cargar):
             break
 
     boton_cargar.config(state="normal" if contiene_mods else "disabled")
+    if not contiene_mods:
+        messagebox.showwarning("Sin mods", "No se encontraron mods en la carpeta seleccionada.")
+    else:
+        messagebox.showinfo("Mods encontrados", "Presione Cargar Mods para cargar la información.")
 
+
+# ---------- Manejar la Carga Local de Mods ----------
 def cargar_mods_locales(ruta, estado_label=None):
     mods_info = []
 
@@ -126,9 +101,9 @@ def cargar_mods_locales(ruta, estado_label=None):
             info = {
                 "nombre": nombre,
                 "version": version,
-                "nueva_version": "No encontrado",
-                "fecha_publicacion": "No encontrado",
-                "fecha_actualizacion": "No encontrado",
+                "nueva_version": "No Consultada",
+                "fecha_publicacion": "No Consultada",
+                "fecha_actualizacion": "No Consultada",
                 "id": mod_id,
                 "timestamp_creacion": os.path.getctime(path_carpeta),
                 "estado": estado
@@ -146,9 +121,11 @@ def cargar_mods_locales(ruta, estado_label=None):
         json.dump(mods_info, f, indent=4, ensure_ascii=False)
 
     if estado_label:
-        advertencia = f" ⚠️ Se detectaron más de 5 mods ({len(mods_info)})." if len(mods_info) > 5 else ""
+        advertencia = f" ⚠️ Se detectaron más de 50 mods ({len(mods_info)})." if len(mods_info) > 50 else ""
         estado_label.config(text=f"📦 {len(mods_info)} mods locales cargados.{advertencia}")
 
+
+# ---------- Manejar la Carga de Mods ----------
 def manejar_carga_mods(entrada_widget, estado_label, cargar_mods_func, redibujar_callback):
     ruta = entrada_widget.get()
     if not os.path.exists(ruta):
@@ -159,17 +136,78 @@ def manejar_carga_mods(entrada_widget, estado_label, cargar_mods_func, redibujar
     mods = cargar_mods_func()
     redibujar_callback(mods)
 
-def actualizar_mods_desde_steam(mods, estado_label):
+
+# ---------- Actualizar consulta de Mods desde Steam ----------
+def actualizar_mods_desde_steam(mods_actualizados, estado_label):
+    if os.path.exists(ARCHIVO_JSON):
+        with open(ARCHIVO_JSON, "r", encoding="utf-8") as f:
+            mods_existentes = json.load(f)
+    else:
+        mods_existentes = []
+    dic_existentes = {mod["id"]: mod for mod in mods_existentes}
+
     actualizados = 0
-    for mod in mods:
-        nueva_version, fecha_actualizacion, fecha_publicacion = obtener_info_steam(mod["id"])
-        mod["nueva_version"] = nueva_version
-        mod["fecha_actualizacion"] = fecha_actualizacion
-        mod["fecha_publicacion"] = fecha_publicacion
-        mod["estado"] = comparar_versiones(mod.get("version", ""), nueva_version)
+    for mod in mods_actualizados:
+        info = obtener_info_steam(mod["id"])
+        mod["nueva_version"] = info["nueva_version"]
+        mod["fecha_actualizacion"] = info["fecha_actualizacion"]
+        mod["fecha_publicacion"] = info["fecha_publicacion"]
+        mod["tamaño"] = info["tamaño"]
+        mod["estado"] = comparar_versiones(mod.get("version", ""), mod["nueva_version"])
+        dic_existentes[mod["id"]] = mod
         actualizados += 1
 
+    mods_final = list(dic_existentes.values())
     with open(ARCHIVO_JSON, "w", encoding="utf-8") as f:
-        json.dump(mods, f, indent=4, ensure_ascii=False)
+        json.dump(mods_final, f, indent=4, ensure_ascii=False)
 
     estado_label.config(text=f"✅ Información actualizada de {actualizados} mods desde Steam.")
+
+
+
+# ---------- Realizar request a la API----------
+def obtener_info_steam(mod_id):
+    try:
+        response = requests.post(API_URL, data={
+            'itemcount': 1,
+            'publishedfileids[0]': mod_id
+        })
+        if response.status_code != 200:
+            raise Exception("API request failed")
+
+        details = response.json()["response"]["publishedfiledetails"][0]
+        print("------- ",details)
+        descripcion = details.get("description", "")
+        update_time = details.get("time_updated", 0)
+        create_time = details.get("time_created", 0)
+        size_bytes = details.get("file_size", 0)
+        size_bytes = int(details.get("file_size", 0))
+        size_mb = round(size_bytes / (1024 * 1024), 2)
+
+
+        # Buscar versión en la descripción
+        import re
+        version_match = re.search(r"v?(\d+(\.\d+)+)", descripcion)
+        nueva_version = version_match.group(1) if version_match else ""
+
+        return {
+            "nueva_version": nueva_version,
+            "fecha_actualizacion": timestamp_a_fecha(update_time),
+            "fecha_publicacion": timestamp_a_fecha(create_time),
+            "tamaño": size_mb
+        }
+
+    except Exception as e:
+        print(f"Error consultando Steam para ID {mod_id}: {e}")
+        return {
+            "nueva_version": "No encontrado",
+            "fecha_actualizacion": "No encontrado",
+            "fecha_publicacion": "No encontrado",
+            "tamaño": "No encontrado"
+        }
+
+def timestamp_a_fecha(ts):
+    if not ts:
+        return "No encontrado"
+    dt = datetime.utcfromtimestamp(ts)
+    return f"{dt.day:02d} {MESES_ES[dt.month]} {dt.year} a las {dt.strftime('%H:%M')}"

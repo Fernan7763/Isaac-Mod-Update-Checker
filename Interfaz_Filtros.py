@@ -1,5 +1,7 @@
-from tkinter import Entry, Button, Label, StringVar, BooleanVar, Checkbutton
+# ---------- Importaciones ----------
+from tkinter import Entry, Button, Label, BooleanVar, Checkbutton
 import Interfaz_Listas as IL
+
 
 # ---------- Variables Globales ----------
 filtros_activos = []
@@ -9,10 +11,12 @@ filtro_sin_act = None
 filtro_ver_dif = None
 frame_lista = None  # Se asignará desde Interfaz.py
 
+
 # ---------- Asignar el Frame contenedor de la lista ----------
 def asignar_frame_lista(frame):
     global frame_lista
     frame_lista = frame
+
 
 # ---------- Inicialización de filtros ----------
 def crear_interfaz_filtros(frame_filtros):
@@ -43,6 +47,7 @@ def crear_interfaz_filtros(frame_filtros):
                 bg="#1e1e1e", fg="white", selectcolor="#1e1e1e", activebackground="#1e1e1e", activeforeground="white")\
         .grid(row=1, column=2, columnspan=2, sticky="w", padx=5)
 
+
 # ---------- Filtros disponibles ----------
 def filtro_por_nombre(nombre):
     return lambda mod: nombre.lower() in mod.get("nombre", "").lower()
@@ -55,6 +60,7 @@ def filtro_sin_actualizacion():
 
 def filtro_version_diferente():
     return lambda mod: mod.get("version", "") != mod.get("nueva_version", "")
+
 
 # ---------- Aplicar filtros ----------
 def aplicar_filtros():
@@ -78,6 +84,7 @@ def aplicar_filtros():
         filtros_activos.append(filtro_version_diferente())
 
     IL.cargar_y_mostrar_mods(frame_lista, filtros_activos)
+
 
 # ---------- Limpiar filtros ----------
 def limpiar_filtros():
