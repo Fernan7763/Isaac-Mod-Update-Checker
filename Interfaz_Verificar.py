@@ -176,7 +176,6 @@ def obtener_info_steam(mod_id):
             raise Exception("API request failed")
 
         details = response.json()["response"]["publishedfiledetails"][0]
-        print("------- ",details)
         descripcion = details.get("description", "")
         update_time = details.get("time_updated", 0)
         create_time = details.get("time_created", 0)

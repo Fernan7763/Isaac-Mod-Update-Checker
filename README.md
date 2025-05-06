@@ -6,6 +6,17 @@ El objetivo es facilitar la gestión de mods, permitiendo a los usuarios mantene
 
 ---
 
+## Preparación del entorno
+
+1. Asegúrate de tener Python 3.8 o superior instalado en tu sistema.
+2. Instala las librerías necesarias (si no están incluidas en la instalación de Python) ejecutando el siguiente comando en tu terminal o símbolo del sistema:
+
+   ```bash
+   pip install tkinter json os webbrowser
+   ```
+
+---
+
 ## 🧩 ¿Qué hace este gestor?
 
 - Carga carpetas de mods y extrae su nombre, versión, ID y fechas desde `metadata.xml`.
